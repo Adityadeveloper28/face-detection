@@ -40,6 +40,8 @@ const FaceRecognitionApp = () => {
       await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
       await faceapi.nets.faceLandmark68Net.loadFromUri("/models");
       await faceapi.nets.faceRecognitionNet.loadFromUri("/models");
+      await faceapi.nets.faceExpressionNet.loadFromUri("/models");
+      await faceapi.nets.ageGenderNet.loadFromUri("/models");
       startVideo();
     };
     loadModels();
@@ -137,7 +139,9 @@ const FaceRecognitionApp = () => {
       const detections = await faceapi
         .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
-        .withFaceDescriptors();
+        .withFaceDescriptors()
+        .withFaceExpressions()
+        .withAgeAndGender();
 
       const resized = faceapi.resizeResults(detections, displaySize);
       canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
@@ -145,8 +149,16 @@ const FaceRecognitionApp = () => {
       resized.forEach((detection) => {
         const match = faceMatcher.findBestMatch(detection.descriptor);
         const box = detection.detection.box;
-        // If match label starts with 'unknown', show 'Unknown' only
+        // Prepare label: name, age, gender, expression
         let label = match.label === "unknown" ? "Unknown" : match.toString();
+        if (detection.age && detection.gender) {
+          label += ` | Age: ${Math.round(detection.age)}, ${detection.gender}`;
+        }
+        if (detection.expressions) {
+          // Get the most probable expression
+          const exp = Object.entries(detection.expressions).sort((a, b) => b[1] - a[1])[0];
+          if (exp && exp[1] > 0.3) label += ` | ${exp[0]}`;
+        }
         const drawBox = new faceapi.draw.DrawBox(box, { label });
         drawBox.draw(canvas);
       });
